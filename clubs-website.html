@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clubs — The Marker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Helvetica+Neue:wght@200;300;400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black: #080808;
+    --near-black: #0d0d0d;
+    --surface: #111111;
+    --border: rgba(255,255,255,0.08);
+    --gold: #C9A84C;
+    --gold-light: #E8C97A;
+    --gold-dim: rgba(201,168,76,0.15);
+    --white: #F5F3EE;
+    --muted: rgba(245,243,238,0.45);
+    --serif: 'Cormorant Garamond', Georgia, serif;
+    --sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: var(--sans);
+    font-weight: 300;
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* Custom cursor */
+  #cursor {
+    position: fixed;
+    width: 8px; height: 8px;
+    background: var(--gold);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: transform 0.1s ease, width 0.3s ease, height 0.3s ease, background 0.3s ease;
+    mix-blend-mode: normal;
+  }
+  #cursor-ring {
+    position: fixed;
+    width: 36px; height: 36px;
+    border: 1px solid rgba(201,168,76,0.4);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: transform 0.15s ease, width 0.3s ease, height 0.3s ease;
+  }
+  body:has(a:hover) #cursor,
+  body:has(button:hover) #cursor { width: 16px; height: 16px; background: var(--gold-light); }
+
+  /* Nav */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2rem 3rem;
+    transition: background 0.5s ease, backdrop-filter 0.5s ease;
+  }
+  nav.scrolled {
+    background: rgba(8,8,8,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo {
+    font-family: var(--serif);
+    font-size: 1.5rem;
+    font-weight: 300;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--white);
+    text-decoration: none;
+  }
+  .nav-logo span { color: var(--gold); }
+  .nav-links {
+    display: flex;
+    gap: 2.5rem;
+    list-style: none;
+  }
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    transition: color 0.3s;
+  }
+  .nav-links a:hover { color: var(--gold); }
+  .nav-cta {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    border: 1px solid var(--gold);
+    padding: 0.6rem 1.4rem;
+    text-decoration: none;
+    transition: background 0.3s, color 0.3s;
+  }
+  .nav-cta:hover { background: var(--gold); color: var(--black); }
+
+  /* Hero */
+  #hero {
+    position: relative;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  #hero-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .hero-content {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    pointer-events: none;
+  }
+  .hero-eyebrow {
+    font-size: 0.65rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeUp 1s ease 0.5s forwards;
+  }
+  .hero-title {
+    font-family: var(--serif);
+    font-size: clamp(4rem, 10vw, 9rem);
+    font-weight: 300;
+    line-height: 0.9;
+    letter-spacing: -0.02em;
+    margin-bottom: 2rem;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeUp 1.2s ease 0.7s forwards;
+  }
+  .hero-title em {
+    font-style: italic;
+    color: var(--gold);
+  }
+  .hero-sub {
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeUp 1s ease 1s forwards;
+  }
+  .hero-hint {
+    position: absolute;
+    bottom: 3rem;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+    opacity: 0;
+    animation: fadeUp 1s ease 1.8s forwards;
+  }
+  .hero-hint span {
+    display: block;
+    font-size: 0.6rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.8rem;
+  }
+  .scroll-line {
+    width: 1px;
+    height: 60px;
+    background: linear-gradient(to bottom, var(--gold), transparent);
+    margin: 0 auto;
+    animation: pulse 2s ease infinite;
+  }
+  .drag-hint {
+    position: absolute;
+    top: 50%;
+    left: 3rem;
+    transform: translateY(-50%);
+    z-index: 10;
+    opacity: 0;
+    animation: fadeUp 1s ease 2s forwards;
+  }
+  .drag-hint span {
+    display: block;
+    font-size: 0.58rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: rgba(201,168,76,0.5);
+    writing-mode: vertical-rl;
+  }
+
+  @keyframes fadeUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  /* Sections */
+  section { padding: 10rem 0; }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 3rem;
+  }
+
+  /* Section: Statement */
+  #statement {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 8rem 0;
+  }
+  .statement-text {
+    font-family: var(--serif);
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    font-weight: 300;
+    line-height: 1.3;
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(40px);
+    transition: opacity 0.9s ease, transform 0.9s ease;
+  }
+  .statement-text.visible { opacity: 1; transform: translateY(0); }
+  .statement-text em { color: var(--gold); font-style: italic; }
+
+  /* Section: Product detail */
+  #product {
+    padding: 10rem 0;
+  }
+  .product-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6rem;
+    align-items: center;
+  }
+  .product-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+  .product-label.visible { opacity: 1; transform: translateX(0); }
+  .product-heading {
+    font-family: var(--serif);
+    font-size: clamp(2.5rem, 4vw, 4rem);
+    font-weight: 300;
+    line-height: 1.1;
+    margin-bottom: 2rem;
+    opacity: 0;
+    transform: translateX(-30px);
+    transition: opacity 0.9s ease 0.1s, transform 0.9s ease 0.1s;
+  }
+  .product-heading.visible { opacity: 1; transform: translateX(0); }
+  .product-body {
+    font-size: 0.85rem;
+    line-height: 1.9;
+    color: var(--muted);
+    margin-bottom: 2.5rem;
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: opacity 0.9s ease 0.2s, transform 0.9s ease 0.2s;
+  }
+  .product-body.visible { opacity: 1; transform: translateX(0); }
+  .spec-list {
+    list-style: none;
+    border-top: 1px solid var(--border);
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: opacity 0.9s ease 0.3s, transform 0.9s ease 0.3s;
+  }
+  .spec-list.visible { opacity: 1; transform: translateX(0); }
+  .spec-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+  }
+  .spec-list li span:first-child {
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-size: 0.65rem;
+  }
+  .spec-list li span:last-child { color: var(--white); }
+
+  .product-visual {
+    position: relative;
+    height: 500px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: translateX(30px);
+    transition: opacity 1s ease, transform 1s ease;
+  }
+  .product-visual.visible { opacity: 1; transform: translateX(0); }
+  #product-canvas {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+  }
+  #product-canvas:active { cursor: grabbing; }
+  .canvas-label {
+    position: absolute;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.58rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: rgba(201,168,76,0.4);
+  }
+
+  /* Section: Features */
+  #features { padding: 10rem 0; background: var(--near-black); }
+  .features-header {
+    text-align: center;
+    margin-bottom: 6rem;
+  }
+  .features-header .section-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1.5rem;
+    display: block;
+  }
+  .features-header h2 {
+    font-family: var(--serif);
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 300;
+  }
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+  }
+  .feature-card {
+    padding: 3rem 2.5rem;
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.7s ease, transform 0.7s ease, background 0.4s ease;
+  }
+  .feature-card:nth-child(2) { transition-delay: 0.1s; }
+  .feature-card:nth-child(3) { transition-delay: 0.2s; }
+  .feature-card.visible { opacity: 1; transform: translateY(0); }
+  .feature-card:hover { background: rgba(201,168,76,0.03); }
+  .feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: var(--gold);
+    transform: scaleX(0);
+    transition: transform 0.4s ease;
+    transform-origin: left;
+  }
+  .feature-card:hover::before { transform: scaleX(1); }
+  .feature-number {
+    font-family: var(--serif);
+    font-size: 3rem;
+    font-weight: 300;
+    color: var(--gold-dim);
+    line-height: 1;
+    margin-bottom: 1.5rem;
+    color: rgba(201,168,76,0.2);
+  }
+  .feature-title {
+    font-family: var(--serif);
+    font-size: 1.3rem;
+    font-weight: 300;
+    margin-bottom: 1rem;
+  }
+  .feature-desc {
+    font-size: 0.78rem;
+    line-height: 1.8;
+    color: var(--muted);
+  }
+
+  /* Section: Material */
+  #material { padding: 10rem 0; }
+  .material-layout {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 8rem;
+    align-items: center;
+  }
+  .material-side-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--gold);
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    display: block;
+  }
+  .material-content h2 {
+    font-family: var(--serif);
+    font-size: clamp(2.5rem, 4vw, 4rem);
+    font-weight: 300;
+    line-height: 1.1;
+    margin-bottom: 2rem;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.9s ease, transform 0.9s ease;
+  }
+  .material-content h2.visible { opacity: 1; transform: translateY(0); }
+  .material-content p {
+    font-size: 0.85rem;
+    line-height: 1.9;
+    color: var(--muted);
+    max-width: 600px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.9s ease 0.15s, transform 0.9s ease 0.15s;
+  }
+  .material-content p.visible { opacity: 1; transform: translateY(0); }
+  .brass-bar {
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--gold), #E8C97A, var(--gold), transparent);
+    margin: 3rem 0;
+    opacity: 0;
+    transition: opacity 1s ease 0.3s;
+  }
+  .brass-bar.visible { opacity: 1; }
+
+  /* Section: Purchase */
+  #purchase {
+    padding: 12rem 0;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  #purchase::before {
+    content: '♣';
+    position: absolute;
+    font-size: 40vw;
+    color: rgba(255,255,255,0.015);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: serif;
+    pointer-events: none;
+    line-height: 1;
+  }
+  .purchase-eyebrow {
+    font-size: 0.6rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 2rem;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+  .purchase-eyebrow.visible { opacity: 1; transform: translateY(0); }
+  .purchase-title {
+    font-family: var(--serif);
+    font-size: clamp(3rem, 7vw, 7rem);
+    font-weight: 300;
+    line-height: 0.95;
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 1s ease 0.1s, transform 1s ease 0.1s;
+  }
+  .purchase-title.visible { opacity: 1; transform: translateY(0); }
+  .purchase-price {
+    font-family: var(--serif);
+    font-size: 1.2rem;
+    font-weight: 300;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    margin-bottom: 3rem;
+    opacity: 0;
+    transition: opacity 0.8s ease 0.2s;
+  }
+  .purchase-price.visible { opacity: 1; }
+  .purchase-desc {
+    font-size: 0.8rem;
+    line-height: 1.9;
+    color: var(--muted);
+    max-width: 480px;
+    margin: 0 auto 3rem;
+    opacity: 0;
+    transition: opacity 0.8s ease 0.25s;
+  }
+  .purchase-desc.visible { opacity: 1; }
+
+  .btn-buy {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--black);
+    background: var(--gold);
+    padding: 1.2rem 4rem;
+    border: none;
+    cursor: none;
+    transition: background 0.3s ease, transform 0.2s ease;
+    text-decoration: none;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.8s ease 0.35s, transform 0.8s ease 0.35s, background 0.3s ease;
+  }
+  .btn-buy.visible { opacity: 1; transform: translateY(0); }
+  .btn-buy:hover { background: var(--gold-light); }
+
+  .btn-secondary {
+    display: inline-block;
+    margin-left: 1.5rem;
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: color 0.3s, border-color 0.3s;
+    opacity: 0;
+    transition: opacity 0.8s ease 0.45s, color 0.3s, border-color 0.3s;
+  }
+  .btn-secondary.visible { opacity: 1; }
+  .btn-secondary:hover { color: var(--gold); border-color: var(--gold); }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 3rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  footer .footer-logo {
+    font-family: var(--serif);
+    font-size: 1.1rem;
+    font-weight: 300;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+  footer .footer-logo span { color: var(--gold); }
+  footer p {
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+  footer .footer-suit {
+    font-size: 1.5rem;
+    color: rgba(201,168,76,0.3);
+  }
+
+  /* Notification */
+  #notify {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: var(--surface);
+    border: 1px solid var(--gold);
+    padding: 1.2rem 2rem;
+    z-index: 200;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: transform 0.5s ease, opacity 0.5s ease;
+  }
+  #notify.show { transform: translateY(0); opacity: 1; }
+  #notify p { font-size: 0.7rem; letter-spacing: 0.15em; color: var(--gold); text-transform: uppercase; }
+  #notify small { font-size: 0.65rem; color: var(--muted); display: block; margin-top: 0.25rem; letter-spacing: 0.05em; }
+</style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+
+<nav id="nav">
+  <a href="#" class="nav-logo">Clubs<span>♣</span></a>
+  <ul class="nav-links">
+    <li><a href="#product">The Marker</a></li>
+    <li><a href="#features">Craft</a></li>
+    <li><a href="#material">Material</a></li>
+  </ul>
+  <a href="#purchase" class="nav-cta">Order Now</a>
+</nav>
+
+<!-- Hero with 3D model -->
+<section id="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-content">
+    <p class="hero-eyebrow">The Clubs Collection — I</p>
+    <h1 class="hero-title">The<br><em>Marker</em></h1>
+    <p class="hero-sub">Brushed Brass &nbsp;·&nbsp; Precision Engineered &nbsp;·&nbsp; Limited Edition</p>
+  </div>
+  <div class="drag-hint">
+    <span>Drag to rotate</span>
+  </div>
+  <div class="hero-hint">
+    <span>Scroll to explore</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- Statement -->
+<section id="statement">
+  <div class="container">
+    <p class="statement-text">
+      Golf has always had quality.<br>
+      It's never had <em>cool</em>.
+    </p>
+  </div>
+</section>
+
+<!-- Product Detail -->
+<section id="product">
+  <div class="container">
+    <div class="product-grid">
+      <div class="product-info">
+        <p class="product-label">The Clubs Marker — No.1</p>
+        <h2 class="product-heading">Precision.<br>Without compromise.</h2>
+        <p class="product-body">
+          The golf ball line marker — reimagined. A tool that lives in your pocket between shots, yet demands attention when you pull it out. Machined from solid brass, finished by hand.
+          <br><br>
+          Because the details you can't see are just as important as the ones you can.
+        </p>
+        <ul class="spec-list">
+          <li><span>Material</span><span>Solid Brass</span></li>
+          <li><span>Finish</span><span>Brushed / Polished</span></li>
+          <li><span>Function</span><span>Ball Line Marker</span></li>
+          <li><span>Edition</span><span>Limited First Run</span></li>
+          <li><span>Price</span><span>$39</span></li>
+        </ul>
+      </div>
+      <div class="product-visual">
+        <canvas id="product-canvas"></canvas>
+        <p class="canvas-label">Drag to rotate</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="features">
+  <div class="container">
+    <div class="features-header">
+      <span class="section-label">Why Clubs</span>
+      <h2>Built for the ones<br>who notice everything</h2>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-number">01</div>
+        <h3 class="feature-title">Solid Brass Construction</h3>
+        <p class="feature-desc">Not plated. Not coated. Solid brass, machined to precise tolerances. Develops a natural patina over time — yours alone.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-number">02</div>
+        <h3 class="feature-title">Perfect Line Every Time</h3>
+        <p class="feature-desc">The slot is engineered to the exact diameter of a standard Sharpie. One motion. One crisp line. Perfectly perpendicular to your putt.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-number">03</div>
+        <h3 class="feature-title">Pocket Presence</h3>
+        <p class="feature-desc">Heavy enough to feel intentional. Compact enough to forget it's there. Until someone asks about it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Material -->
+<section id="material">
+  <div class="container">
+    <div class="material-layout">
+      <div>
+        <span class="material-side-label">Brushed Brass</span>
+      </div>
+      <div class="material-content">
+        <h2>Brass. Because<br>nothing else feels<br>like this.</h2>
+        <div class="brass-bar"></div>
+        <p>Brass has been the material of fine instruments, architectural details, and precision tools for centuries. There's a reason. It has weight. Warmth. Character. It doesn't pretend to be plastic.</p>
+        <br>
+        <p>Each Clubs Marker is finished by hand — brushed on the flat surfaces, polished on the edges. No two are exactly the same. That's the point.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Purchase -->
+<section id="purchase">
+  <div class="container">
+    <p class="purchase-eyebrow">Limited First Edition</p>
+    <h2 class="purchase-title">Own<br>The<br><em style="color:var(--gold)">Marker</em></h2>
+    <p class="purchase-price">$39 — Free Shipping</p>
+    <p class="purchase-desc">Hand-finished brass. Designed for the player who has everything — except something worth talking about.</p>
+    <a href="#" class="btn-buy" id="buy-btn">Order Now</a>
+    <a href="#product" class="btn-secondary">Learn More</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-logo">Clubs<span>♣</span></div>
+  <p>© 2025 Clubs. All rights reserved.</p>
+  <div class="footer-suit">♣</div>
+</footer>
+
+<div id="notify">
+  <p>Thank you for your interest</p>
+  <small>Payment processing coming soon — we'll be in touch.</small>
+</div>
+
+<script>
+/* Cursor */
+const cursor = document.getElementById('cursor');
+const cursorRing = document.getElementById('cursor-ring');
+let cx = 0, cy = 0, rx = 0, ry = 0;
+document.addEventListener('mousemove', e => {
+  cx = e.clientX; cy = e.clientY;
+  cursor.style.left = cx + 'px'; cursor.style.top = cy + 'px';
+});
+function animateRing() {
+  rx += (cx - rx) * 0.12;
+  ry += (cy - ry) * 0.12;
+  cursorRing.style.left = rx + 'px'; cursorRing.style.top = ry + 'px';
+  requestAnimationFrame(animateRing);
+}
+animateRing();
+
+/* Nav scroll */
+window.addEventListener('scroll', () => {
+  document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 80);
+});
+
+/* Buy button */
+document.getElementById('buy-btn').addEventListener('click', e => {
+  e.preventDefault();
+  const n = document.getElementById('notify');
+  n.classList.add('show');
+  setTimeout(() => n.classList.remove('show'), 4000);
+});
+
+/* Scroll reveal */
+function reveal() {
+  document.querySelectorAll([
+    '.statement-text','.product-label','.product-heading','.product-body','.spec-list',
+    '.product-visual','.feature-card','.material-content h2','.material-content p',
+    '.brass-bar','.purchase-eyebrow','.purchase-title','.purchase-price',
+    '.purchase-desc','.btn-buy','.btn-secondary'
+  ].join(',')).forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (r.top < window.innerHeight * 0.88) el.classList.add('visible');
+  });
+}
+window.addEventListener('scroll', reveal);
+reveal();
+
+/* Three.js setup */
+function buildMarker(scene, THREE) {
+  const group = new THREE.Group();
+
+  // Brass materials
+  const brassMat = new THREE.MeshStandardMaterial({
+    color: 0xC9993A,
+    metalness: 0.95,
+    roughness: 0.25,
+    envMapIntensity: 1.5
+  });
+  const polishMat = new THREE.MeshStandardMaterial({
+    color: 0xE8C060,
+    metalness: 1.0,
+    roughness: 0.05,
+    envMapIntensity: 2.0
+  });
+
+  // Main body: rounded rectangular block
+  const bodyGeo = new THREE.BoxGeometry(1.8, 0.5, 0.9, 1, 1, 1);
+  const body = new THREE.Mesh(bodyGeo, brassMat);
+  group.add(body);
+
+  // Beveled edges (corner cylinders)
+  const edgeMat = polishMat;
+  const edgeR = 0.08;
+  const corners = [
+    [0.9-edgeR, 0, 0.45-edgeR], [-0.9+edgeR, 0, 0.45-edgeR],
+    [0.9-edgeR, 0, -0.45+edgeR], [-0.9+edgeR, 0, -0.45+edgeR]
+  ];
+  corners.forEach(([x,y,z]) => {
+    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(edgeR, edgeR, 0.5, 16), edgeMat);
+    cyl.position.set(x, y, z);
+    group.add(cyl);
+  });
+
+  // Top face – brushed finish plate
+  const topGeo = new THREE.BoxGeometry(1.76, 0.04, 0.86);
+  const top = new THREE.Mesh(topGeo, brassMat);
+  top.position.y = 0.27;
+  group.add(top);
+
+  // Slot channel (recessed)
+  const slotGeo = new THREE.BoxGeometry(1.0, 0.12, 0.16);
+  const slotMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0, roughness: 1 });
+  const slot = new THREE.Mesh(slotGeo, slotMat);
+  slot.position.set(0, 0.22, 0);
+  group.add(slot);
+
+  // Slot rim
+  const rimGeo = new THREE.BoxGeometry(1.04, 0.03, 0.20);
+  const rim = new THREE.Mesh(rimGeo, polishMat);
+  rim.position.set(0, 0.29, 0);
+  group.add(rim);
+
+  // Club suit emboss (flat disc)
+  const suitGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.02, 32);
+  const suit = new THREE.Mesh(suitGeo, polishMat);
+  suit.position.set(0.55, 0.28, 0);
+  group.add(suit);
+
+  // Bottom polished strip
+  const stripGeo = new THREE.BoxGeometry(1.76, 0.03, 0.04);
+  const strip = new THREE.Mesh(stripGeo, polishMat);
+  strip.position.set(0, -0.24, 0);
+  group.add(strip);
+
+  // End caps (polished)
+  [-0.9, 0.9].forEach(x => {
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.5, 0.9), polishMat);
+    cap.position.x = x;
+    group.add(cap);
+  });
+
+  return group;
+}
+
+function initThree(canvasId, isHero) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = isHero ? 1.4 : 1.6;
+
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, w / h, 0.1, 100);
+  camera.position.set(0, 1.5, 7);
+  camera.lookAt(0, 0, 0);
+
+  // Lighting — dramatic, cinematic
+  const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+  scene.add(ambient);
+
+  const keyLight = new THREE.DirectionalLight(0xFFE8A0, 3.5);
+  keyLight.position.set(3, 4, 3);
+  scene.add(keyLight);
+
+  const rimLight = new THREE.DirectionalLight(0xC9A84C, 2.0);
+  rimLight.position.set(-4, 2, -3);
+  scene.add(rimLight);
+
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+  fillLight.position.set(0, -2, 5);
+  scene.add(fillLight);
+
+  const topLight = new THREE.DirectionalLight(0xFFD080, 1.5);
+  topLight.position.set(0, 6, 0);
+  scene.add(topLight);
+
+  // PMREMGenerator for reflections
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  const envScene = new THREE.RoomEnvironment ? new THREE.RoomEnvironment() : null;
+  if (envScene) {
+    const envTex = pmrem.fromScene(envScene).texture;
+    scene.environment = envTex;
+  }
+
+  const marker = buildMarker(scene, THREE);
+  scene.add(marker);
+  if (isHero) marker.scale.setScalar(1.1);
+
+  // Drag rotation
+  let dragging = false, lastX = 0, lastY = 0;
+  let rotY = isHero ? 0.3 : 0.4, rotX = isHero ? -0.15 : -0.2;
+  let velY = 0.003, velX = 0;
+
+  canvas.addEventListener('mousedown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; velY = 0; velX = 0; });
+  canvas.addEventListener('touchstart', e => { dragging = true; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; velY = 0; velX = 0; }, { passive: true });
+  window.addEventListener('mouseup', () => dragging = false);
+  window.addEventListener('touchend', () => dragging = false);
+
+  canvas.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    velY = (e.clientX - lastX) * 0.01;
+    velX = (e.clientY - lastY) * 0.008;
+    rotY += velY; rotX += velX;
+    rotX = Math.max(-Math.PI/3, Math.min(Math.PI/3, rotX));
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  canvas.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    velY = (e.touches[0].clientX - lastX) * 0.01;
+    velX = (e.touches[0].clientY - lastY) * 0.008;
+    rotY += velY; rotX += velX;
+    rotX = Math.max(-Math.PI/3, Math.min(Math.PI/3, rotX));
+    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+  }, { passive: true });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    if (!dragging) {
+      velY *= 0.95;
+      velY = velY || 0.004;
+      rotY += velY;
+    }
+    marker.rotation.y = rotY;
+    marker.rotation.x = rotX;
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // Resize
+  const resizeObs = new ResizeObserver(() => {
+    const w2 = canvas.clientWidth, h2 = canvas.clientHeight;
+    renderer.setSize(w2, h2, false);
+    camera.aspect = w2 / h2;
+    camera.updateProjectionMatrix();
+  });
+  resizeObs.observe(canvas);
+}
+
+// Wait for THREE to load
+window.addEventListener('load', () => {
+  initThree('hero-canvas', true);
+  initThree('product-canvas', false);
+});
+</script>
+</body>
+</html>
