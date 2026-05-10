@@ -8,6 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Helvetica+Neue:wght@200;300;400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+ 
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -789,40 +791,9 @@ window.addEventListener('scroll', reveal);
 reveal();
 
 /* Three.js setup */
-const STL_B64 = "eNoc13dck1ffx3G1UChSURQkihAVFAfKMixB"
 
-function b64ToUint8(b64) {
-  const bin = atob(b64);
-  const u8 = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-  return u8;
-}
 
-function decodeSTL(b64) {
-  const compressed = b64ToUint8(b64);
-  const raw = pako.inflate(compressed);
-  const dv = new DataView(raw.buffer);
-  let off = 0;
-  const minX = dv.getFloat32(off, true); off+=4;
-  const minY = dv.getFloat32(off, true); off+=4;
-  const minZ = dv.getFloat32(off, true); off+=4;
-  const rngX = dv.getFloat32(off, true); off+=4;
-  const rngY = dv.getFloat32(off, true); off+=4;
-  const rngZ = dv.getFloat32(off, true); off+=4;
-  const vertCount = dv.getUint32(off, true); off+=4;
-  const idxCount  = dv.getUint32(off, true); off+=4;
-  const positions = new Float32Array(vertCount * 3);
-  for (let i = 0; i < vertCount * 3; i += 3) {
-    positions[i]   = dv.getUint16(off, true) / 65535 * rngX + minX; off+=2;
-    positions[i+1] = dv.getUint16(off, true) / 65535 * rngY + minY; off+=2;
-    positions[i+2] = dv.getUint16(off, true) / 65535 * rngZ + minZ; off+=2;
-  }
-  const normals = new Float32Array(vertCount * 3);
-  for (let i = 0; i < vertCount * 3; i++) { normals[i] = dv.getInt8(off) / 127; off+=1; }
-  const indices = new Uint32Array(raw.buffer.slice(off), 0, idxCount);
-  return { positions, normals, indices };
-}
-
+ 
 function buildEnvMap(renderer, THREE) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const scene = new THREE.Scene();
@@ -885,31 +856,32 @@ function initThree(canvasId, isHero) {
     envMapIntensity: 1.4
   });
 
-  const { positions, normals, indices } = decodeSTL(STL_B64);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('normal',   new THREE.BufferAttribute(normals,   3));
-  geo.setIndex(new THREE.BufferAttribute(indices, 1));
+const group = new THREE.Group();
+scene.add(group);
+
+const loader = new THREE.STLLoader();
+
+loader.load('./models/marker.stl', function (geo) {
+
   geo.computeBoundingBox();
 
   const box = geo.boundingBox;
+
   const cx = (box.min.x + box.max.x) / 2;
   const cy = (box.min.y + box.max.y) / 2;
   const cz = (box.min.z + box.max.z) / 2;
-  const posArr = geo.attributes.position.array;
-  for (let i = 0; i < posArr.length; i += 3) {
-    posArr[i] -= cx; posArr[i+1] -= cy; posArr[i+2] -= cz;
-  }
-  geo.attributes.position.needsUpdate = true;
-  geo.computeBoundingBox();
-  geo.computeBoundingSphere();
+
+  geo.translate(-cx, -cy, -cz);
+
   geo.computeVertexNormals();
 
   const mesh = new THREE.Mesh(geo, brassMat);
+
   mesh.rotation.x = Math.PI / 2;
-  const group = new THREE.Group();
+
   group.add(mesh);
-  scene.add(group);
+
+});
 
   let dragging = false, lastX = 0, lastY = 0;
   let rotY = isHero ? 0.4 : 0.5, rotX = isHero ? -0.08 : -0.12;
